@@ -5,7 +5,7 @@
   inputs.nixpkgs = { type = "github"; owner = "NixOS"; repo = "nixpkgs"; ref = "nixos-unstable"; };
 
   # Upstream source tree(s).
-  inputs.scion-src = { type = "github"; owner = "netsec-ethz"; repo = "scion"; ref = "scionlab"; flake = false; };
+  inputs.scion-src = { type = "github"; owner = "scionproto"; repo = "scion"; ref = "v0.10.0"; flake = false; };
 
   inputs.scion-apps-src = { type = "github"; owner = "netsec-ethz"; repo = "scion-apps"; flake = false; };
   inputs.scionlab-src = { type = "github"; owner = "netsec-ethz"; repo = "scionlab"; ref = "develop"; flake = false; };
@@ -46,25 +46,29 @@
       # A Nixpkgs overlay.
       overlay = final: prev: with final.pkgs; {
 
-        scion = buildGo117Module {
+        scion = buildGo121Module {
           pname = "scion";
           version = versions.scion;
           src = scion-src;
-          vendorSha256 = "sha256-VeT20we0EEExSpue6r63cKCXLyJ2ILXAzm9I8FqrUDI=";
+          vendorSha256 = "sha256-4nTp6vOyS7qDn8HmNO0NGCNU7wCb8ww8a15Yv3MPEq8=";
           postPatch = ''
             patchShebangs **/*.sh scion.sh
 
-            substituteInPlace go/pkg/proto/daemon/mock_daemon/daemon.go \
-              --replace ColibriList ColibriListRsvs \
-              --replace ColibriAdmissionEntryResponse ColibriAddAdmissionEntryResponse \
-              --replace ColibriAdmissionEntry ColibriAddAdmissionEntryRequest \
-              --replace ColibriCleanupRequest ColibriCleanupRsvRequest \
-              --replace ColibriCleanupResponse ColibriCleanupRsvResponse \
-              --replace ColibriSetupRequest ColibriSetupRsvRequest \
-              --replace ColibriSetupResponse ColibriSetupRsvResponse
+#            substituteInPlace go/pkg/proto/daemon/mock_daemon/daemon.go \
+#              --replace ColibriList ColibriListRsvs \
+#              --replace ColibriAdmissionEntryResponse ColibriAddAdmissionEntryResponse \
+#              --replace ColibriAdmissionEntry ColibriAddAdmissionEntryRequest \
+#              --replace ColibriCleanupRequest ColibriCleanupRsvRequest \
+#              --replace ColibriCleanupResponse ColibriCleanupRsvResponse \
+#              --replace ColibriSetupRequest ColibriSetupRsvRequest \
+#              --replace ColibriSetupResponse ColibriSetupRsvResponse
           '';
           postInstall = ''
             cp scion.sh $out/
+            ln -s $out/bin/dispatcher $out/bin/scion-dispatcher
+            ln -s $out/bin/router $out/bin/scion-router
+            ln -s $out/bin/control $out/bin/scion-control
+            ln -s $out/bin/daemon $out/bin/scion-daemon
           '';
           doCheck = false;
         };
@@ -90,7 +94,7 @@
           '';
         };
 
-        scion-apps = buildGo117Module {
+        scion-apps = buildGo121Module {
           pname = "scion-apps";
           version = versions.scion;
           src = scion-apps-src;
@@ -134,7 +138,7 @@
           '';
         };
 
-        rains = buildGo117Module {
+        rains = buildGo121Module {
           pname = "rains";
           version = versions.rains;
           src = rains-src;
@@ -218,7 +222,7 @@
       };
 
       # Tests run by 'nix flake check' and by Hydra.
-      checks = forAllSystems (system: self.packages.${system} // { });
+      checks = { x86_64-linux.scion-vm-test = nixpkgs.legacyPackages.x86_64-linux.callPackage ./vmtest/scion-vmtest.nix { scion = self.packages.x86_64-linux.scion; }; };
 
     };
 }
