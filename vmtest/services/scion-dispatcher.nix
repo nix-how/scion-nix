@@ -14,15 +14,16 @@
     after = [ "network-online.target" ];
     wantedBy = [ "multi-user.target" ];
     serviceConfig = {
-#      User = "scion";
-#      Group = "scion";
+      User = "scion";
+      Group = "scion";
       Type = "simple";
       BindPaths = [ "/dev/shm:/run/shm" ];
       RuntimeDirectoryMode = "777";
       ExecStart = "${scion}/bin/scion-dispatcher --config ${./dispatcher.toml}";
 #      ExecStartPre = "rm -rf /run/shm/dispatcher";
       Restart = "on-failure";
-      DynamicUser = true;
+#      DynamicUser = true;
+
       StateDirectory = "scion-dispatcher";
     };
   };

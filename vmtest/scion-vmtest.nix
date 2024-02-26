@@ -1,4 +1,4 @@
-{ scion, nixosTest, runCommand }:
+{ scion, nixosTest, runCommand, writeShellScript }:
 let
   trust-root-configuration-keys = runCommand "generate-trc-keys.sh" {
     buildInputs = [
@@ -71,48 +71,139 @@ let
     scion-pki certificate create --profile=cp-as <(echo '{"isd_as": "42-ffaa:1:4", "common_name": "42-ffaa:1:4 AS cert"}') AS4/cp-as.pem AS4/cp-as.key --ca AS1/cp-ca.pem --ca-key AS1/cp-ca.key --bundle
     scion-pki certificate create --profile=cp-as <(echo '{"isd_as": "42-ffaa:1:5", "common_name": "42-ffaa:1:5 AS cert"}') AS5/cp-as.pem AS5/cp-as.key --ca AS2/cp-ca.pem --ca-key AS2/cp-ca.key --bundle
 
-   mkdir -p $out
-   mv * $out
+    for i in {1..5}
+    do
+      mkdir -p $out/AS$i
+      cp AS$i/cp-as.{key,pem} $out/AS$i
+    done
+
+    mv *.trc $out
   '';
-  master = runCommand "generate-trc-keys.sh" {
-    buildInputs = [
-      scion
-    ];
-  } ''
-  '';
-  imports = [
+  imports = hostId: [
     (import ./services/scion-daemon.nix { inherit scion; })
     (import ./services/scion-router.nix { inherit scion; })
     (import ./services/scion-control.nix { inherit scion; })
     (import ./services/scion-dispatcher.nix { inherit scion; })
+    ({
+      networking = {
+        useNetworkd = true;
+        useDHCP = false;
+        firewall.enable = false;
+      };
+      systemd.network.networks."01-eth1" = {
+        name = "eth1";
+        networkConfig.Address = "192.168.1.${toString hostId}/24";
+      };
+
+      environment.etc."scion/topology.json".source = ./topology${toString hostId}.json;
+      environment.etc."scion/crypto/as".source = trust-root-configuration-keys + "/AS${toString hostId}";
+      environment.etc."scion/certs/ISD42-B1-S1.trc".source = trust-root-configuration-keys + "/ISD42-B1-S1.trc";
+      environment.etc."scion/keys/master0.key".text = "U${toString hostId}v4k23ZXjGDwDofg/Eevw==";
+      environment.etc."scion/keys/master1.key".text = "dBMko${toString hostId}qMS8DfrN/zP2OUdA==";
+      environment.systemPackages = [
+        (builtins.trace trust-root-configuration-keys.outPath trust-root-configuration-keys)
+        scion
+      ];
+
+    })
   ];
 in
 nixosTest {
   name = "scion-test";
   nodes = {
     scion01 = { ... }: {
-      inherit imports;
-      environment.etc."scion/topology.json".source = ./topology1.json;
-      environment.etc."scion/crypto/as".source = trust-root-configuration-keys + "/AS1";
-      environment.etc."scion/certs/ISD42-B1-S1.trc".source = trust-root-configuration-keys + "/ISD42-B1-S1.trc";
-      environment.etc."scion/keys/master0.key".text = "U5v4k23ZXjGDwDofg/Eevw==";
-      environment.etc."scion/keys/master1.key".text = "dPMko3qMS8DfrN/zP2OUdA==";
-      environment.systemPackages = [
-        (builtins.trace trust-root-configuration-keys.outPath trust-root-configuration-keys)
-        scion
-      ];
+      imports = (imports 1);
     };
-#    scion02 = { ... }: {
+    scion02 = { ... }: {
+      imports = (imports 2);
+    };
+    scion03 = { ... }: {
+      imports = (imports 3);
+    };
+    scion04 = { ... }: {
+      imports = (imports 4);
+    };
+    scion05 = { ... }: {
+      imports = (imports 5);
+    };
+#    scion03 = { ... }: {
+#      inherit imports;
+#      environment.etc."scion/topology.json".source = ./topology3.json;
+#      environment.etc."scion/crypto/as".source = trust-root-configuration-keys + "/AS3";
+#      environment.etc."scion/certs/ISD42-B1-S1.trc".source = trust-root-configuration-keys + "/ISD42-B1-S1.trc";
+#      environment.etc."scion/keys/master0.key".text = "U5v4k23ZXjGDwDofg/Eevw==";
+#      environment.etc."scion/keys/master1.key".text = "dPMko3qMS8DfrN/zP2OUdA==";
+#      environment.systemPackages = [
+#        (builtins.trace trust-root-configuration-keys.outPath trust-root-configuration-keys)
+#        scion
+#      ];
+#    };
+#    scion04 = { ... }: {
+#      inherit imports;
+#      environment.etc."scion/topology.json".source = ./topology4.json;
+#      environment.etc."scion/crypto/as".source = trust-root-configuration-keys + "/AS4";
+#      environment.etc."scion/certs/ISD42-B1-S1.trc".source = trust-root-configuration-keys + "/ISD42-B1-S1.trc";
+#      environment.etc."scion/keys/master0.key".text = "U5v4k23ZXjGDwDofg/Eevw==";
+#      environment.etc."scion/keys/master1.key".text = "dPMko3qMS8DfrN/zP2OUdA==";
+#      environment.systemPackages = [
+#        (builtins.trace trust-root-configuration-keys.outPath trust-root-configuration-keys)
+#        scion
+#      ];
+#    };
+#    scion05 = { ... }: {
+#      inherit imports;
+#      environment.etc."scion/topology.json".source = ./topology5.json;
+#      environment.etc."scion/crypto/as".source = trust-root-configuration-keys + "/AS5";
+#      environment.etc."scion/certs/ISD42-B1-S1.trc".source = trust-root-configuration-keys + "/ISD42-B1-S1.trc";
+#      environment.etc."scion/keys/master0.key".text = "U5v4k23ZXjGDwDofg/Eevw==";
+#      environment.etc."scion/keys/master1.key".text = "dPMko3qMS8DfrN/zP2OUdA==";
 #      environment.systemPackages = [
 #        (builtins.trace trust-root-configuration-keys.outPath trust-root-configuration-keys)
 #        scion
 #      ];
 #    };
   };
-  testScript = ''
+  testScript = let
+    pingAll = writeShellScript "ping-all-scion.sh" ''
+
+      ## This would be the dumb version of the smart loop below, but the smart
+      ## loop uses crazy bash syntax, I should find a simpler way
+
+      # scion showpaths 42-ffaa:1:1 --dispatcher /dev/shm/dispatcher/default.sock
+      # scion showpaths 42-ffaa:1:2 --dispatcher /dev/shm/dispatcher/default.sock
+      # scion showpaths 42-ffaa:1:3 --dispatcher /dev/shm/dispatcher/default.sock
+      # scion showpaths 42-ffaa:1:4 --dispatcher /dev/shm/dispatcher/default.sock
+      # scion showpaths 42-ffaa:1:5 --dispatcher /dev/shm/dispatcher/default.sock
+      # scion ping 42-ffaa:1:1,192.168.1.1 -c 3 --dispatcher /dev/shm/dispatcher/default.sock
+      # scion ping 42-ffaa:1:2,192.168.1.2 -c 3 --dispatcher /dev/shm/dispatcher/default.sock
+      # scion ping 42-ffaa:1:3,192.168.1.3 -c 3 --dispatcher /dev/shm/dispatcher/default.sock
+      # scion ping 42-ffaa:1:4,192.168.1.4 -c 3 --dispatcher /dev/shm/dispatcher/default.sock
+      # scion ping 42-ffaa:1:5,192.168.1.5 -c 3 --dispatcher /dev/shm/dispatcher/default.sock
+
+      addresses=("42-ffaa:1:1" "42-ffaa:1:2" "42-ffaa:1:3" "42-ffaa:1:4" "42-ffaa:1:5")
+
+      # Iterate over each address in the array
+      for address in "''${addresses[@]}"; do
+          # Run the showpaths command for each address
+          scion showpaths "$address" --dispatcher /dev/shm/dispatcher/default.sock
+
+          # Run the ping command for each address
+          scion ping "$address,192.168.1.$(( ''${address##*:} ))" -c 3 --dispatcher /dev/shm/dispatcher/default.sock
+      done
+
+    '';
+  in ''
     start_all()
-    scion01.wait_for_unit("multi-user.target")
-    scion01.succeed("sleep 5")
-    scion01.succeed("scion ping 42-ffaa:1:1,192.168.1.1 -c 3 --dispatcher /dev/shm/dispatcher/default.sock >&2")
+    scion01.wait_for_unit("scion-control.service")
+    scion02.wait_for_unit("scion-control.service")
+    scion03.wait_for_unit("scion-control.service")
+    scion04.wait_for_unit("scion-control.service")
+    scion05.wait_for_unit("scion-control.service")
+    scion01.sleep(10)
+    scion01.succeed("${pingAll} >&2")
+    scion02.succeed("${pingAll} >&2")
+    scion03.succeed("${pingAll} >&2")
+    scion04.succeed("${pingAll} >&2")
+    scion05.succeed("${pingAll} >&2")
   '';
 }
