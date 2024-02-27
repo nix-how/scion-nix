@@ -188,7 +188,8 @@ nixosTest {
           scion showpaths "$address" --dispatcher /dev/shm/dispatcher/default.sock
 
           # Run the ping command for each address
-          scion ping "$address,192.168.1.$(( ''${address##*:} ))" -c 3 --dispatcher /dev/shm/dispatcher/default.sock
+          #scion ping "$address,192.168.1.$(( ''${address##*:} ))" -c 3 --dispatcher /dev/shm/dispatcher/default.sock
+          scion ping "$address,127.0.0.1" -c 3 --dispatcher /dev/shm/dispatcher/default.sock
       done
 
     '';
