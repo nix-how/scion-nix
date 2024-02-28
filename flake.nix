@@ -46,6 +46,22 @@
       # A Nixpkgs overlay.
       overlay = final: prev: with final.pkgs; {
 
+        ioq3-scion = let
+          fetchedAssets = fetchzip {
+            url = "https://archive.org/download/baseq3/baseq3.zip";
+            hash = "sha256-XdjuCeq9RegEUPMdeotpuEb1lzhyaSkpjYqBPOVyXtM=";
+          };
+          assets = runCommand "ioq3-assets" {} ''
+            mkdir -p $out/share/ioquake3
+            cp -r ${fetchedAssets} $out/share/ioquake3/baseq3
+          '';
+        in symlinkJoin {
+          name = "ioq3-scion-with-assets";
+          paths = [
+            assets
+            (builtins.getFlake "github:matthewcroughan/nixpkgs/f90fcd31eeb587950dc9fcdf04e7fbaa80328bcc").legacyPackages.${final.hostPlatform.system}.ioq3-scion
+          ];
+        };
         scion = buildGo121Module {
           pname = "scion";
           version = versions.scion;
@@ -156,7 +172,7 @@
           inherit (pkgSet)
             scion scion-apps scionlab
             scion-systemd-wrapper
-            rains;
+            rains ioq3-scion;
         }
       );
 
